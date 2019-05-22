@@ -386,9 +386,7 @@ function g_binary(payload, command) {
     var len_command = bufferhelp.numToBuf(payload.length, false, 4);
     //20-24
     var checksum = toBuffer(sha256(toBuffer(sha256(payload)))).slice(0, 4);
-
     var b = Buffer.concat([magic, b_command, len_command, checksum, payload]);
-
     return b;
 }
 

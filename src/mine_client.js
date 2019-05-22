@@ -9,27 +9,20 @@ var addr;
 function PoetClient(miners, link_no, coin, name = '') {
     this.POET_POOL_HEARTBEAT = 5 * 1000;    // heartbeat every 5 seconds, can be 5 sec ~ 50 min (3000 sec)
     this.PEER_ADDR_ = [];          // ('192.168.1.103',30303)
-
     this._active = false;
-
     this.miners = miners;
     this._name = name + '>';
     this._link_no = link_no;
     this._coin = coin;
-
     this._last_peer_addr = null;
-
     this._recv_buffer = '';
     this._last_rx_time = 0
     this._last_pong_time = 0
-
     this._reject_count = 0
     this._last_taskid = 0
     this._time_taskid = 0
     this._compete_src = [];
-
     this.socket = dgram.createSocket('udp4');
-
     this.set_peer = set_peer;
 }
 
@@ -92,7 +85,6 @@ PoetClient.prototype.heartbeat = function () {
             this.socket = sock;
             this.set_peer(this._last_peer_addr);
         } catch (error) {
-
             console.log('renew socket err:', error);
         }
     }
@@ -102,14 +94,6 @@ PoetClient.prototype.heartbeat = function () {
         var miners = this.miners;
         var sn = compete_src[0], block_hash = compete_src[1], bits = compete_src[2], txn_num = compete_src[3], link_no = compete_src[4], hi = compete_src[5];
         var succ_miner = '', succ_sig = '';
-        // for (i in miners) {
-        // var sig = miners[i].check_elapsed(block_hash, bits, txn_num, now, '00', hi);
-        // if (sig) {
-        //     succ_miner = miner;
-        //     succ_sig = sig;
-        //     break;
-        // }
-        // var that = this;
         for (i in miners) {
             miners[i].check_elapsed(block_hash, bits, txn_num, now, '00', hi).then(sig => {
                 console.log('>>> sig:', sig);
@@ -117,15 +101,12 @@ PoetClient.prototype.heartbeat = function () {
                     succ_miner = miners[i];
                     succ_sig = sig;
                 }
-
                 if (succ_miner) {
                     this._compete_src = [];
                     var msg = new PoetResult(link_no, sn, succ_miner.pub_keyhash, bh.bufToStr(succ_sig));
                     var payload = dftPoetResult(msg);
                     var command = 'poetresult';
                     var msg_buf = message.g_binary(payload, command);
-                    var c = bh.bufToStr(msg_buf);
-                    console.log('>>> c:', c, c.length);
                     this.send_message(msg_buf, this.PEER_ADDR_);
                     console.log('>>>>>>>>>>>> success mining <<<<<<<<<<<<<<');
                     console.log(`${this._name} success mining: link=${link_no}, height=${hi}, sn=${sn}, miner=${succ_miner.pub_keyhash}'`);

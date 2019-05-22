@@ -31,6 +31,7 @@ var pseudoWallet;
 window.onload = function () {
     let getAccount = document.getElementById('getPubkey');
     getAccount.onclick = function () {
+        
         application.issueCommand(str_commandApdu(cmd_pubkey)).then(res => {
             console.log('>>> getPubkey:', res.data);
         }).catch(err => {
@@ -43,10 +44,8 @@ window.onload = function () {
     getAddress.onclick = function () {
         application.issueCommand(str_commandApdu(cmd_pubAddr)).then(res => {
             console.log('>>> getAddress:', res.data);
-
         }).catch(err => {
             console.log('getAddress err:', err);
-
             return;
         })
     }
@@ -66,137 +65,140 @@ window.onload = function () {
                     transmit(cmd_pubkeyHash).then(res => {
                         pubHash = res.data.slice(0, res.data.length - 4);
                         console.log('>>> pubHash:', pubHash);
-                        // pseudoWallet = new PseudoWallet(pubkey, pubHash);
-                        // var tee = new TeeMiner(pubHash);
-                        // var gPoetClient = new PoetClient([tee], 0, '', 'clinet1');
-                        // dns.lookup(mine_hostname, (err, ip_addr, family) => {
-                        //     if (err) { console.log('invalid hostname'); return; }
-                        //     console.log('dns ip_addr:', ip_addr);
-                        //     // this.PEER_ADDR_ = [ip_addr, port];
-                        //     gPoetClient.PEER_ADDR_ = [ip_addr, mine_port];
-                        //     gPoetClient._last_peer_addr = gPoetClient.PEER_ADDR_;
-                        //     gPoetClient.start();
-                        //     gPoetClient.set_peer(gPoetClient.PEER_ADDR_);
-                        // })
+                        pseudoWallet = new PseudoWallet(pubkey, pubHash);
+                        var tee = new TeeMiner(pubHash);
+                        var gPoetClient = new PoetClient([tee], 0, '', 'clinet1');
+                        dns.lookup(mine_hostname, (err, ip_addr, family) => {
+                            if (err) { console.log('invalid hostname'); return; }
+                            console.log('dns ip_addr:', ip_addr);
+                            // this.PEER_ADDR_ = [ip_addr, port];
+                            // gPoetClient.PEER_ADDR_ = [ip_addr, mine_port];
+                            // gPoetClient._last_peer_addr = gPoetClient.PEER_ADDR_;
+                            //1.获取地址
+                            // getPubAddr();
+                            //2.获取
+                            //1. 挖矿
+                            // gPoetClient.start();
+                            // gPoetClient.set_peer(gPoetClient.PEER_ADDR_);
+                        });
                     });
-                });
+                })
+            })
+
+            device.on('card-removed', event => {
+                console.log(`> [${__time__()}] Card remove from '${event.name}'`);
             })
         })
 
-        device.on('card-removed', event => {
-            console.log(`> [${__time__()}] Card remove from '${event.name}'`);
+
+
+        devices.on('device-deactivated', event => {
+            console.log(`> [${__time__()}] Device '${event.device}' Deactivated`);
         })
-    })
-
-
-
-    devices.on('device-deactivated', event => {
-        console.log(`> [${__time__()}] Device '${event.device}' Deactivated`);
-    })
-}
+    }
 
 function cmdLoop(sCmd) {
-    if (sCmd == 'account') {
-        var pubAddr = getPubAddr();
-        pubKey = getPubKey(conn);
-    }
-}
+            if (sCmd == 'account') {
+                var pubAddr = getPubAddr();
+                pubKey = getPubKey(conn);
+            }
+        }
 
 function getPubAddr() {
-    transmit();
-}
+            transmit();
+        }
 
 function transmit(cmd) {
-    if (!application) throw 'card insert err';
-    return application.issueCommand(str_commandApdu(cmd)).then(res => {
-        var _res = res.data;
-        console.log(`> [${__time__()}] transmit cmd:${cmd},response:${_res} ${_res.length}`);
-        if (_res.length < 4) return '';
-        if (_res.length > 128) {
-            console.log('>>>>>>>>>>>>>>>>>> get it <<<<<<<<<<<<<<<<<<<<<');
+            if (!application) throw 'card insert err';
+            return application.issueCommand(str_commandApdu(cmd)).then(res => {
+                var _res = res.data;
+                console.log(`> [${__time__()}] transmit cmd:${cmd},response:${_res} ${_res.length}`);
+                if (_res.length < 4) return '';
+                if (_res.length > 128) {
+                    console.log('>>>>>>>>>>>>>>>>>> get it <<<<<<<<<<<<<<<<<<<<<');
+                }
+                return res;
+            }).catch(err => {
+                console.log('err:', err);
+            })
         }
-        return res;
-    }).catch(err => {
-        console.log('err:', err);
-    })
-}
 
 function str_commandApdu(s) {
-    return new CommandApdu({ bytes: hexify.toByteArray(s) })
-}
+            return new CommandApdu({ bytes: hexify.toByteArray(s) })
+        }
 
 function TeeMiner(pubHash) {
-    this.SUCC_BLOCKS_MAX = 256;
-    this.succ_blocks = [];
-    this.pub_keyhash = pubHash;
-}
+            this.SUCC_BLOCKS_MAX = 256;
+            this.succ_blocks = [];
+            this.pub_keyhash = pubHash;
+        }
 
 TeeMiner.prototype.check_elapsed = function (block_hash, bits, txn_num, curr_tm = '', sig_flag = '00', hi = 0) {
-    if (!application) return;
-    if (!curr_tm) curr_tm = timest();
-    try {
-        var sCmd = '8023' + sig_flag + '00';
-        sCmd = bh.hexStrToBuffer(sCmd);
-        var sBlockInfo = Buffer.concat([bh.hexStrToBuffer(block_hash), struct.pack('<II', [bits, txn_num])]);
-        var sData = Buffer.concat([struct.pack('<IB', [curr_tm, sBlockInfo.length]), sBlockInfo]);
-        sCmd = Buffer.concat([sCmd, struct.pack('<B', [sData.length]), sData]);
-        sCmd = bh.bufToStr(sCmd);
-        transmit(sCmd).then(res => {
-            if (res.data.length > 128) {
-                this.succ_blocks.push([curr_tm, hi]);
-                if (this.succ_blocks.length > this.SUCC_BLOCKS_MAX) {
-                    this.succ_blocks.splice(this.SUCC_BLOCKS_MAX, 1);
-                }
-                return Buffer.concat([res.Buffer, Buffer.from(sig_flag)]);
+            if (!application) return;
+            if (!curr_tm) curr_tm = timest();
+            try {
+                var sCmd = '8023' + sig_flag + '00';
+                sCmd = bh.hexStrToBuffer(sCmd);
+                var sBlockInfo = Buffer.concat([bh.hexStrToBuffer(block_hash), struct.pack('<II', [bits, txn_num])]);
+                var sData = Buffer.concat([struct.pack('<IB', [curr_tm, sBlockInfo.length]), sBlockInfo]);
+                sCmd = Buffer.concat([sCmd, struct.pack('<B', [sData.length]), sData]);
+                sCmd = bh.bufToStr(sCmd);
+                transmit(sCmd).then(res => {
+                    if (res.data.length > 128) {
+                        this.succ_blocks.push([curr_tm, hi]);
+                        if (this.succ_blocks.length > this.SUCC_BLOCKS_MAX) {
+                            this.succ_blocks.splice(this.SUCC_BLOCKS_MAX, 1);
+                        }
+                        return Buffer.concat([res.Buffer, Buffer.from(sig_flag)]);
+                    }
+                });
+            } catch (err) {
+                console.log(err);
             }
-        });
-    } catch (err) {
-        console.log(err);
-    }
-    return '';
-}
+            return '';
+        }
 
 function timest() {
-    var tmp = Date.parse(new Date()).toString();
-    tmp = tmp.substr(0, 10);
-    return parseInt(tmp);
-}
+            var tmp = Date.parse(new Date()).toString();
+            tmp = tmp.substr(0, 10);
+            return parseInt(tmp);
+        }
 
 function Newborntoken() {
-    this.COINBASE_MATURITY = 8
-    this.WEB_SERVER_ADDR = 'http://raw0.nb-chain.net'
+            this.COINBASE_MATURITY = 8
+            this.WEB_SERVER_ADDR = 'http://raw0.nb-chain.net'
 
-    this.name = "newborntoken"
-    this.symbols = ['NBT']         //all symbols
-    this.symbol = symbols[0]      //rimary symbol
+            this.name = "newborntoken"
+            this.symbols = ['NBT']         //all symbols
+            this.symbol = symbols[0]      //rimary symbol
 
-    // mining_coin_type = b'\x00'
-    this.mining_coin_type = 0;
-    // currency_coin_type = b'\x00'
-    this.currency_coin_type = 0;
-    this.protocol_version = 0
+            // mining_coin_type = b'\x00'
+            this.mining_coin_type = 0;
+            // currency_coin_type = b'\x00'
+            this.currency_coin_type = 0;
+            this.protocol_version = 0
 
-    // magic = b'\xf9\x6e\x62\x74'
-    this.magic = '';
+            // magic = b'\xf9\x6e\x62\x74'
+            this.magic = '';
 
-    this.raw_seed = ('raw%.nb-chain.net', 20303) // '52.80.85.68', tcp listen port is 20303
+            this.raw_seed = ('raw%.nb-chain.net', 20303) // '52.80.85.68', tcp listen port is 20303
 
-    this.genesis_version = 1
-    // genesis_block_hash = decodeHex(b'1f4bb08cbc3370746a3de301511ab7395d2b439e497dc604d9062341a90d0000')
-    this.genesis_block_hash = '';
-    // genesis_merkle_root = decodeHex(b'e2fb0b95bc2294d046646592df8ffee4cf6df21a0cef0d95e9c712b45a7eddc0')
-    this.genesis_merkle_root = '';
-    this.genesis_timestamp = 1546517099
-    this.genesis_bits = 2500
-    // genesis_miner = decodeHex(b'be599666b155b9a4e87502f55aea4def3917a33f6d11672004a98304060ee8b8')
-    this.genesis_miner = '';
-    this.genesis_nonce = 47961596
-    // genesis_signature = decodeHex(b'304402203d0894fbbae2f82657af91852e940ab87c2a000b97a1ed24ddb449caadff72be02202b99ad651aabd82a7822da763ca68cb9e6aaae1e9507af04d47a4526d20994cf00')
-    this.genesis_signature = '';
-    // genesis_txn = protocol.Txn(1,
-    //     [protocol.TxnIn(protocol.OutPoint(b'\x00' * 32, 0xffffffff), struct.pack('<BI', 4, 0), 0xffffffff)],
-    //     [protocol.TxnOut(1050000000000000, _PAY2MINER), protocol.TxnOut(0, _PAY2MINER)],
-    //     0xffffffff, b'') # genesis block only contains one transaction
-    this.genesis_txn = '';
-}
+            this.genesis_version = 1
+            // genesis_block_hash = decodeHex(b'1f4bb08cbc3370746a3de301511ab7395d2b439e497dc604d9062341a90d0000')
+            this.genesis_block_hash = '';
+            // genesis_merkle_root = decodeHex(b'e2fb0b95bc2294d046646592df8ffee4cf6df21a0cef0d95e9c712b45a7eddc0')
+            this.genesis_merkle_root = '';
+            this.genesis_timestamp = 1546517099
+            this.genesis_bits = 2500
+            // genesis_miner = decodeHex(b'be599666b155b9a4e87502f55aea4def3917a33f6d11672004a98304060ee8b8')
+            this.genesis_miner = '';
+            this.genesis_nonce = 47961596
+            // genesis_signature = decodeHex(b'304402203d0894fbbae2f82657af91852e940ab87c2a000b97a1ed24ddb449caadff72be02202b99ad651aabd82a7822da763ca68cb9e6aaae1e9507af04d47a4526d20994cf00')
+            this.genesis_signature = '';
+            // genesis_txn = protocol.Txn(1,
+            //     [protocol.TxnIn(protocol.OutPoint(b'\x00' * 32, 0xffffffff), struct.pack('<BI', 4, 0), 0xffffffff)],
+            //     [protocol.TxnOut(1050000000000000, _PAY2MINER), protocol.TxnOut(0, _PAY2MINER)],
+            //     0xffffffff, b'') # genesis block only contains one transaction
+            this.genesis_txn = '';
+        }
 

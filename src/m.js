@@ -18,7 +18,7 @@ var mine_port = 30302;
 
 var SELECT = '00A404000ED196300077130010000000020101';
 // var SELECT = 'D196300077130010000000020101';
-// var cmd_pubAddr = '80220200020000';
+var cmd_pubAddr = '80220200020000';
 var cmd_pubkey = '8022000000';
 var cmd_pubkeyHash = '8022010000';
 var GET_RESPONSE = '0x00c00000';
@@ -50,8 +50,12 @@ devices.on('device-activated', event => {
                         // this.PEER_ADDR_ = [ip_addr, port];
                         gPoetClient.PEER_ADDR_ = [ip_addr, mine_port];
                         gPoetClient._last_peer_addr = gPoetClient.PEER_ADDR_;
-                        gPoetClient.start();
-                        gPoetClient.set_peer(gPoetClient.PEER_ADDR_);
+                        //1.获取地址
+                        getPubAddr();
+                        //2.获取
+                        //1. 挖矿
+                        // gPoetClient.start();
+                        // gPoetClient.set_peer(gPoetClient.PEER_ADDR_);
                     })
                 });
             });
@@ -63,6 +67,17 @@ devices.on('device-activated', event => {
     })
 })
 
+function getPubKey() {
+    return pseudoWallet.pubkey;
+}
+
+function getPubKeyHash() {
+    return pseudoWallet.pub_keyhash;
+}
+
+function getPubAddr() {
+    return pseudoWallet.pub_addr;
+}
 
 function transmit(cmd) {
     if (!application) throw 'card insert err';

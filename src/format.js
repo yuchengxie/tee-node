@@ -364,7 +364,4 @@ var gFormat = {
     'poetreject': poetreject,
     'poetresult':poetresult
 }
-
-
-
 module.exports = gFormat;
