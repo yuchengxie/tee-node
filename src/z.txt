@@ -34,3 +34,4 @@ node单线程支撑高并发原理（node异步I/O）:
 
 
 
+(node:15712) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 message listeners added. Use emitter.setMaxListeners() to increase limit

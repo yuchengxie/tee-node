@@ -102,39 +102,39 @@ PoetClient.prototype.heartbeat = function () {
         var miners = this.miners;
         var sn = compete_src[0], block_hash = compete_src[1], bits = compete_src[2], txn_num = compete_src[3], link_no = compete_src[4], hi = compete_src[5];
         var succ_miner = '', succ_sig = '';
+        // for (i in miners) {
+        // var sig = miners[i].check_elapsed(block_hash, bits, txn_num, now, '00', hi);
+        // if (sig) {
+        //     succ_miner = miner;
+        //     succ_sig = sig;
+        //     break;
+        // }
+        // var that = this;
         for (i in miners) {
-            console.log(typeof miners[i]);
-            var sig = miners[i].check_elapsed(block_hash, bits, txn_num, now, '00', hi);
-            if (sig) {
-                succ_miner = miner;
-                succ_sig = sig;
-                break;
-            }
+            miners[i].check_elapsed(block_hash, bits, txn_num, now, '00', hi).then(sig => {
+                console.log('>>> sig:', sig);
+                if (sig) {
+                    succ_miner = miners[i];
+                    succ_sig = sig;
+                }
+
+                if (succ_miner) {
+                    this._compete_src = [];
+                    var msg = new PoetResult(link_no, sn, succ_miner.pub_keyhash, bh.bufToStr(succ_sig));
+                    var payload = dftPoetResult(msg);
+                    var command = 'poetresult';
+                    var msg_buf = message.g_binary(payload, command);
+                    var c = bh.bufToStr(msg_buf);
+                    console.log('>>> c:', c, c.length);
+                    this.send_message(msg_buf, this.PEER_ADDR_);
+                    console.log('>>>>>>>>>>>> success mining <<<<<<<<<<<<<<');
+                    console.log(`${this._name} success mining: link=${link_no}, height=${hi}, sn=${sn}, miner=${succ_miner.pub_keyhash}'`);
+                    sleep(this.POET_POOL_HEARTBEAT);
+                }
+            })
         }
-
-        if (succ_miner) {
-            this._compete_src = [];
-
-            // var msg = protocol.PoetResult(
-            //     link_no, sn, succ_miner.pub_keyhash, succ_sig)
-            // tm = time.localtime(now)
-            // console.log('>>> success mining');
-
-
-            var msg = new PoetResult(link_no, sn, succ_miner.pub_keyhash, succ_sig);
-            var buf = new Buffer(0);
-            var _bindMsg = new bindMsg(gFormat.poetresult);
-            var b = _bindMsg.binary(msg, buf);
-            var command = 'poetresult';
-            var msg_buf = message.g_binary(b, command);
-            this.send_message(msg_buf, this.PEER_ADDR_);
-            console.log('>>>>>>>>>>>> success mining <<<<<<<<<<<<<<');
-            console.log(`${this._name} success mining: link=${link_no}, height=${hi}, sn=${sn}, miner=${succ_miner.pub_keyhash}'`);
-            sleep(this.POET_POOL_HEARTBEAT);
-
-        }
-
     }
+
     if (now >= (this._last_rx_time + this.POET_POOL_HEARTBEAT / 1000)) {
         var msg = new GetPoetTask(this._link_no, this._last_taskid, this._time_taskid);
         var buf = new Buffer(0);
@@ -144,6 +144,57 @@ PoetClient.prototype.heartbeat = function () {
         var msg_buf = message.g_binary(b, command);
         this.send_message(msg_buf, this.PEER_ADDR_);
     }
+}
+
+
+function dftPoetResult(msg) {
+    var a = new Buffer(0);
+    var b;
+
+    for (var name in msg) {
+        if (name === 'link_no') {
+            dftNumberI(msg['link_no']);//4
+        }
+        else if (name === 'curr_id') {
+            dftNumberI(msg['curr_id']);//4
+        } else if (name === 'miner') {
+            dftBytes32(msg['miner']);
+        } else if (name === 'sig_tee') {
+            dftVarString(msg['sig_tee']);//4
+        }
+    }
+
+    function dftBytes32(hash) {
+        // var b = toBuffer(hash);
+        // var b=bh.hexStrToBuffer(hash);
+        var b = new Buffer(hash, 'hex');
+        a = Buffer.concat([a, b]);
+    }
+
+    function dftNumberI(n) {
+        b = new Buffer(4);
+        //n转16进制buffer
+        b.writeUInt32LE(n);
+        a = Buffer.concat([a, b]);
+    }
+
+    function dftVarString(str) {
+        var b = bh.hexStrToBuffer(str);
+        var len = b.length;
+
+        if (b.length < 0xFD) {
+            dftNumber1(len);//1
+            a = Buffer.concat([a, b]);
+        }
+    }
+
+    function dftNumber1(n) {
+        b = new Buffer(1);
+        b.writeUInt8(n);
+        a = Buffer.concat([a, b]);
+    }
+    
+    return a;
 }
 
 PoetClient.prototype.send_message = function (msg, peer_addr) {
@@ -175,7 +226,7 @@ PoetClient.prototype.send_message = function (msg, peer_addr) {
                     try {
                         that.handle_message(payload, that);
                     } catch (error) {
-                        console.log('handle_message err');
+                        // console.log('handle_message err');
                     }
                 } catch (error) {
                     console.log('handle err:', error);
@@ -194,7 +245,7 @@ PoetClient.prototype.handle_message = function (payload, that) {
         var _bindMsg = new bindMsg(gFormat.poetinfo);
         var msg = _bindMsg.parse(payload, 0)[1];
         // console.log('>>> sCmd:%s\n>>> msg:%o',sCmd,msg);
-        
+
         // console.log('>>> sCmd:%s', sCmd);
         if (msg.curr_id > that._last_taskid) {
             // this._compete_src = ;
@@ -211,7 +262,7 @@ PoetClient.prototype.handle_message = function (payload, that) {
             var b = bh.hexStrToBuffer(msg.reason);
             var reason = b.toString('latin1');
             // console.log('>>> sCmd:%s %s\n>>> msg:%o',sCmd,reason,msg);
-            console.log('>>> sCmd:%s %s', sCmd, reason);
+            // console.log('>>> sCmd:%s %s', sCmd, reason);
             //missed task old
             //invalid current task not exist
             if (reason == 'missed' && that._last_taskid == msg.sequence) {

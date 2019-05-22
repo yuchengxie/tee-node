@@ -32,38 +32,6 @@ devices.on('device-activated', event => {
     device.on('card-inserted', event => {
         var card = event.card;
         application = new Iso7816Application(card);
-        // console.log(`[${__time__()}] Card '${card.getAtr()}' Inserted into '${event.device}'`);
-        // card.on('command-issued', event => {
-        //     console.log(`> [${__time__()}] Command issued '${event.command}' to '${event.card}'`);
-        // })
-
-        // var iLoop = 0;
-        // var result = '';
-
-        // card.on('response-received', event => {
-        // result = event.response.data;
-        // console.log(`> [${__time__()}] Response '${event.response.data}' received from '${event.card}' --- in response to Command '${event.command}'`);
-        // if (result.length < 4) return result;
-        // if (result.slice(result.length - 4, result.length).includes('9000')) {
-        //     result = result.slice(0, result.length - 4);
-        //     console.log(`> [${__time__()}] Response '${result}' received from '${event.card}' --- in response to Command '${event.command}'`);
-        //     return result;
-        // }
-        // var res_buf = event.response.buffer;
-        // if (res_buf[0] == 0x61 && iLoop < 32) {
-        //     var sw2 = bh.bufToStr(res_buf.slice(1));
-        //     var s = GET_RESPONSE + sw2;
-        //     console.log('>>> GET_RESPONSE + [sw2]:', s);
-        //     iLoop++;
-        //     return application.issueCommand(new CommandApdu({ bytes: hexify.toByteArray(s) })).then(res => {
-        //         result += res;
-        //         // return result;
-        //     })
-        // }
-        // console.log('>>> final result:', result);
-        // return result;
-        // })
-
         //get tee wallet
         var pubkey, pubHash;
         transmit(SELECT).then(res => {
@@ -95,12 +63,13 @@ devices.on('device-activated', event => {
     })
 })
 
+
 function transmit(cmd) {
     if (!application) throw 'card insert err';
     return application.issueCommand(str_commandApdu(cmd)).then(res => {
         var _res = res.data;
-        if (_res.length < 4) return '';
         console.log(`> [${__time__()}] transmit cmd:${cmd},response:${_res} ${_res.length}`);
+        if (_res.length < 4) return '';
         if (_res.length > 128) {
             console.log('>>>>>>>>>>>>>>>>>> get it <<<<<<<<<<<<<<<<<<<<<');
         }
@@ -134,19 +103,21 @@ TeeMiner.prototype.check_elapsed = function (block_hash, bits, txn_num, curr_tm 
         var sData = Buffer.concat([struct.pack('<IB', [curr_tm, sBlockInfo.length]), sBlockInfo]);
         sCmd = Buffer.concat([sCmd, struct.pack('<B', [sData.length]), sData]);
         sCmd = bh.bufToStr(sCmd);
-        transmit(sCmd).then(res => {
+        return transmit(sCmd).then(res => {
             if (res.data.length > 128) {
                 this.succ_blocks.push([curr_tm, hi]);
                 if (this.succ_blocks.length > this.SUCC_BLOCKS_MAX) {
                     this.succ_blocks.splice(this.SUCC_BLOCKS_MAX, 1);
                 }
-                return Buffer.concat([res.Buffer, Buffer.from(sig_flag)]);
+                return Buffer.concat([bh.hexStrToBuffer(res.buffer), bh.hexStrToBuffer(sig_flag)]);
+            } else {
+                // return bh.hexStrToBuffer('00');
+                return '';
             }
         });
     } catch (err) {
         console.log(err);
     }
-    return '';
 }
 
 function timest() {

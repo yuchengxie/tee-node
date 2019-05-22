@@ -142,11 +142,16 @@
 // console.log(c);
 // console.log(d);
 
-function Stu(name,age){
-    this.name=name;
-    this.age=age;
-}
+// function Stu(name,age){
+//     this.name=name;
+//     this.age=age;
+// }
 
-var s=new Stu('xyc',18);
+// var s=new Stu('xyc',18);
 
-console.log('>>> a:%d\n>>> stu:%o',1,s);
+// console.log('>>> a:%d\n>>> stu:%o',1,s);
+const bh=require('./bufferhelp');
+var s='00'
+var t=bh.hexStrToBuffer(s);
+
+console.log(t);
